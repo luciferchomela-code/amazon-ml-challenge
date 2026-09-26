@@ -1,0 +1,39 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Datasets (too large for GitHub)
+student_resource/
+dataset/
+
+# Output cache and large artifacts
+output/cache/
+output/cache_100k/
+output/cache_1m/
+output/candidate_pairs.tsv
+output/matching_results.tsv
+output/missed_matches_diagnostic.tsv
+output/student_resource/
+business_entity_resolution_submission/output/
+
+# Submission zip
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
