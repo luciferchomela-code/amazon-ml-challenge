@@ -479,14 +479,6 @@ This project was developed as a team of four for the Amazon ML Challenge 2024.
 
 ---
 
-## License
-
-This repository is intended for educational and research purposes.
-
-Please refer to the repository and competition rules for any restrictions regarding the original competition data.
-
----
-
 ## Repository
 
 GitHub:
