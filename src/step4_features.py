@@ -11,17 +11,21 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 def fuzzy_batch(args):
     names1, names2, addrs1, addrs2 = args
     res_name_jaro, res_name_toksort, res_name_tokset, res_addr_lev = [], [], [], []
+    res_name_partial, res_addr_partial = [], []
     jw_sim = rfd.JaroWinkler.normalized_similarity
     ts_ratio = fuzz.token_sort_ratio
     tset_ratio = fuzz.token_set_ratio
+    partial = fuzz.partial_ratio
     lev_sim = rfd.Levenshtein.normalized_similarity
     for n1, n2, a1, a2 in zip(names1, names2, addrs1, addrs2):
         n1, n2, a1, a2 = n1 or "", n2 or "", a1 or "", a2 or ""
         res_name_jaro.append(jw_sim(n1, n2))
         res_name_toksort.append(ts_ratio(n1, n2) / 100.0)
         res_name_tokset.append(tset_ratio(n1, n2) / 100.0)
+        res_name_partial.append(partial(n1, n2) / 100.0)
         res_addr_lev.append(lev_sim(a1, a2))
-    return res_name_jaro, res_name_toksort, res_name_tokset, res_addr_lev
+        res_addr_partial.append(partial(a1, a2) / 100.0)
+    return res_name_jaro, res_name_toksort, res_name_tokset, res_addr_lev, res_name_partial, res_addr_partial
 
 
 def add_rapidfuzz_features(df: pl.DataFrame, n_workers: int = None) -> pl.DataFrame:
@@ -40,14 +44,16 @@ def add_rapidfuzz_features(df: pl.DataFrame, n_workers: int = None) -> pl.DataFr
                    for i in range(0, len(names1), bs)]
         with mp.Pool(n_workers) as pool:
             results = pool.map(fuzzy_batch, batches)
-    jaro, toksort, tokset, lev = [], [], [], []
+    jaro, toksort, tokset, lev, name_partial, addr_partial = [], [], [], [], [], []
     for r in results:
-        jaro.extend(r[0]); toksort.extend(r[1]); tokset.extend(r[2]); lev.extend(r[3])
+        jaro.extend(r[0]); toksort.extend(r[1]); tokset.extend(r[2]); lev.extend(r[3]); name_partial.extend(r[4]); addr_partial.extend(r[5])
     df = df.with_columns([
         pl.Series("name_jaro", jaro, dtype=pl.Float32),
         pl.Series("name_toksort", toksort, dtype=pl.Float32),
         pl.Series("name_tokset", tokset, dtype=pl.Float32),
+        pl.Series("name_partial", name_partial, dtype=pl.Float32),
         pl.Series("addr_lev", lev, dtype=pl.Float32),
+        pl.Series("addr_partial", addr_partial, dtype=pl.Float32),
     ])
     print(f"  [FUZZY] {time.time()-start:.1f}s")
     return df
@@ -89,8 +95,11 @@ def add_polars_features(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns([
         (pl.min_horizontal(pl.col("clean_name_s1").str.len_chars(), pl.col("clean_name_s23").str.len_chars()) / safe_max_name)
             .cast(pl.Float32).alias("name_len_ratio"),
+        (pl.col("clean_name_s1").str.len_chars() - pl.col("clean_name_s23").str.len_chars()).abs().cast(pl.Float32).alias("name_len_diff"),
         (pl.min_horizontal(pl.col("clean_address_s1").str.len_chars(), pl.col("clean_address_s23").str.len_chars()) / safe_max_addr)
             .cast(pl.Float32).alias("addr_len_ratio"),
+        (pl.col("clean_address_s1").str.len_chars() - pl.col("clean_address_s23").str.len_chars()).abs().cast(pl.Float32).alias("addr_len_diff"),
+        (pl.col("clean_address_s1").str.replace_all(r"[^\d]", "") == pl.col("clean_address_s23").str.replace_all(r"[^\d]", "")).cast(pl.Int8).alias("exact_addr_numbers"),
         # FIX #3: guard "" == "" false positives
         ((pl.col("postal_code_s1") != "") & (pl.col("postal_code_s23") != "") &
          (pl.col("postal_code_s1") == pl.col("postal_code_s23"))).cast(pl.Int8).alias("exact_postal"),

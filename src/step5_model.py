@@ -8,7 +8,8 @@ from sklearn.model_selection import GroupShuffleSplit
 FEATURES = [
     "num_blockers_agreeing", "name_jaro", "name_toksort", "name_tokset",
     "addr_lev", "name_tfidf_cos", "addr_tfidf_cos", "name_len_ratio", "addr_len_ratio",
-    "exact_phonetic", "exact_postal", "first_word_name_match", "is_s2"
+    "exact_phonetic", "exact_postal", "first_word_name_match", "is_s2",
+    "name_partial", "addr_partial", "name_len_diff", "addr_len_diff", "exact_addr_numbers"
 ]
 
 
@@ -59,13 +60,13 @@ def find_optimal_threshold(val_df: pd.DataFrame, extra_singleton_ids: set = None
             else:
                 tp = len(pred_set & true_set)
                 prec, rec = tp / len(pred_set), tp / len(true_set)
-                # Optimize for F1 instead of F0.5 to reduce missed matches
-                scores.append((2.0 * prec * rec) / (prec + rec) if prec + rec > 0 else 0.0)
-        macro_f1 = sum(scores) / len(scores)
-        if macro_f1 > best_score:
-            best_score, best_t = macro_f1, t
+                # Optimize for F0.5 strictly as per competition evaluation
+                scores.append((1.25 * prec * rec) / (0.25 * prec + rec) if prec + rec > 0 else 0.0)
+        macro_f05 = sum(scores) / len(scores)
+        if macro_f05 > best_score:
+            best_score, best_t = macro_f05, t
 
-    print(f"  [TUNING] Best Threshold: {best_t:.2f} (Val F1: {best_score:.4f})")
+    print(f"  [TUNING] Best Threshold: {best_t:.2f} (Val F0.5: {best_score:.4f})")
     return best_t
 
 
